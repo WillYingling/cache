@@ -2,6 +2,17 @@ package cache
 
 import "time"
 
+func removeNil(all ...Validator) []Validator {
+	ret := []Validator{}
+	for _, v := range all {
+		if v != nil {
+			ret = append(ret, v)
+		}
+	}
+
+	return ret
+}
+
 type anyValidator []Validator
 
 func (a anyValidator) ShouldFetch() bool {
@@ -23,9 +34,7 @@ func (a anyValidator) OnFetch() {
 // AnyOf returns a validator that will refresh the cache if any of the provided validators
 // think the cache needs to be refreshed.
 func AnyOf(v ...Validator) Validator {
-	var anyOf anyValidator
-	anyOf = v
-	return anyOf
+	return anyValidator(removeNil(v...))
 }
 
 type allValidator []Validator
@@ -49,9 +58,7 @@ func (a allValidator) OnFetch() {
 // AllOf returns a validator that will refresh the cache if all of the provided validators
 // think the cache needs to be refreshed.
 func AllOf(v ...Validator) Validator {
-	var allOf allValidator
-	allOf = v
-	return allOf
+	return allValidator(removeNil(v...))
 }
 
 // NoCacheValidator returns a validator that always attempts to refresh the cache.
