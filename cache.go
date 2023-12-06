@@ -18,8 +18,9 @@ type Fetcher[T any] func(context.Context) (T, error)
 // by a fetcher, and refresh those values according to the provided
 // validator. It is thread-safe.
 type Cache[T any] struct {
-	lastVal T
-	lastErr error
+	lastVal    T
+	lastErr    error
+	cacheError bool
 
 	mux       sync.Mutex
 	validator Validator
@@ -28,12 +29,13 @@ type Cache[T any] struct {
 }
 
 // NewCache creates a cache object with the provided fetcher and validator.
-func NewCache[T any](fetcher Fetcher[T], validator Validator) *Cache[T] {
+func NewCache[T any](fetcher Fetcher[T], validator Validator, cacheError bool) *Cache[T] {
 	manual := NewManualValidator()
 	return &Cache[T]{
-		validator: AnyOf(validator, manual),
-		fetcher:   fetcher,
-		manual:    manual,
+		validator:  AnyOf(validator, manual),
+		fetcher:    fetcher,
+		manual:     manual,
+		cacheError: cacheError,
 	}
 }
 
@@ -46,6 +48,10 @@ func (c *Cache[T]) Get(ctx context.Context) (T, error) {
 	if c.validator.ShouldFetch() {
 		c.lastVal, c.lastErr = c.fetcher(ctx)
 		c.validator.OnFetch()
+	}
+
+	if c.lastErr != nil && !c.cacheError {
+		c.manual.Invalidate()
 	}
 
 	return c.lastVal, c.lastErr
@@ -61,8 +67,8 @@ func (c *Cache[T]) Invalidate() {
 
 // CachedFetcher returns a Fetcher func with an embedded cache, if it
 // is more convenient to deal with function types.
-func CachedFetcher[T any](f Fetcher[T], validator Validator) Fetcher[T] {
-	c := NewCache(f, validator)
+func CachedFetcher[T any](f Fetcher[T], validator Validator, cacheError bool) Fetcher[T] {
+	c := NewCache(f, validator, cacheError)
 
 	return c.Get
 }
